@@ -5,7 +5,14 @@ Settings module for LLM service.
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-class 
+class AppSettings(BaseSettings):
+    """
+    Settings for FastAPI application.
+
+    Args:
+        BaseSettings (_type_): _description_
+    """
 
 
-class Settings(BaseSettings):
+# class Settings(BaseSettings):
+    
