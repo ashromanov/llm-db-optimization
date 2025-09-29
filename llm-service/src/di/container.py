@@ -5,7 +5,7 @@ from src.services.task_manager import TaskManager
 
 class AppProvider(Provider):
     @provide(scope=Scope.APP)
-    async def provide_task_manager(self):
+    async def provide_task_manager(self) -> TaskManager:
         return TaskManager()
 
 

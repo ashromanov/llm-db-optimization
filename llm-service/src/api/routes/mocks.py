@@ -1,3 +1,6 @@
+import json
+import uuid
+
 from dishka.integrations.fastapi import DishkaRoute, FromDishka
 from fastapi import APIRouter
 from fastapi.exceptions import HTTPException
@@ -11,9 +14,19 @@ from src.api.schemas.response import (
     TaskIdResponse,
     TaskStatusResponse,
 )
-from src.services.task_manager import TaskManager
+from src.services.task_manager import State, TaskManager
 
-router = APIRouter(prefix="/tasks", tags=["tasks"], route_class=DishkaRoute)
+MOCK_FLIGHTS_DATA = None
+MOCK_QUESTS_DATA = None
+
+with open("./src/mocks/result_flights.json") as file:
+    MOCK_FLIGHTS_DATA = json.load(file)
+
+with open("./src/mocks/result_quests.json") as file:
+    MOCK_QUESTS_DATA = json.load(file)
+
+
+router = APIRouter(prefix="/mocks", tags=["mocks"], route_class=DishkaRoute)
 
 
 @router.post("/new", response_model=TaskIdResponse)
@@ -50,6 +63,8 @@ async def get_task_status(
     Returns:
         TaskStatusResponse: JSON with key 'status'.
     """
+
+    task_manager.change_task_state(taskid, State.DONE)
 
     return {"status": task_manager.get_task_state(taskid).value}
 
@@ -91,9 +106,9 @@ async def get_task_result(
     #     ddl=ddl_statements, migrations=migration_statements, queries=optimized_queries
     # )
 
-    response = task_manager.get_task_result(taskid)
+    # response = task_manager.get_task_result(taskid)
 
-    if not response:
-        raise HTTPException(status_code=404, detail="Not found task result")
+    # if not response:
+    #     raise HTTPException(status_code=404, detail="Not found task result")
 
-    return response
+    return MOCK_QUESTS_DATA

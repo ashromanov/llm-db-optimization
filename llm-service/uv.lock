@@ -347,6 +347,7 @@ dependencies = [
     { name = "langgraph" },
     { name = "pydantic-settings" },
     { name = "uvicorn", extra = ["standard"] },
+    { name = "uvloop" },
 ]
 
 [package.metadata]
@@ -357,6 +358,7 @@ requires-dist = [
     { name = "langgraph", specifier = ">=0.6.7" },
     { name = "pydantic-settings", specifier = ">=2.11.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.37.0" },
+    { name = "uvloop", specifier = ">=0.21.0" },
 ]
 
 [[package]]
