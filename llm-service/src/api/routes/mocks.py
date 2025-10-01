@@ -14,7 +14,7 @@ from src.api.schemas.response import (
     TaskIdResponse,
     TaskStatusResponse,
 )
-from src.services.task_manager import State, TaskManager
+from src.services.task_manager import Status, TaskManager
 
 MOCK_FLIGHTS_DATA = None
 MOCK_QUESTS_DATA = None
@@ -43,11 +43,11 @@ async def create_task(
         TaskIdResponse: JSON with key 'taskid'.
     """
 
-    task_id = task_manager.create_task()
+    #task_id = task_manager.create_task()
 
     # Что то делаем с task_id надо типо в background task просто кинуть и кайфовать
 
-    return {"taskid": task_id}
+    return {"taskid": "123"}
 
 
 @router.get("/status", response_model=TaskStatusResponse)
@@ -64,9 +64,9 @@ async def get_task_status(
         TaskStatusResponse: JSON with key 'status'.
     """
 
-    task_manager.change_task_state(taskid, State.DONE)
+    task_manager.get_status(taskid, Status.DONE)
 
-    return {"status": task_manager.get_task_state(taskid).value}
+    return {"status": Status.DONE}
 
 
 @router.get("/getresult", response_model=OptimizationResponse)

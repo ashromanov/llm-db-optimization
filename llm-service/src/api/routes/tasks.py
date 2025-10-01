@@ -1,13 +1,13 @@
+import asyncio
+
 from dishka.integrations.fastapi import DishkaRoute, FromDishka
 from fastapi import APIRouter
 from fastapi.exceptions import HTTPException
 
+from src.agents.google_agent.optimizer_agent import agent
 from src.api.schemas.request import DatabaseMetadata
 from src.api.schemas.response import (
-    DDLStatement,
-    MigrationStatement,
     OptimizationResponse,
-    OptimizedQuery,
     TaskIdResponse,
     TaskStatusResponse,
 )
@@ -18,7 +18,8 @@ router = APIRouter(prefix="/tasks", tags=["tasks"], route_class=DishkaRoute)
 
 @router.post("/new", response_model=TaskIdResponse)
 async def create_task(
-    db_metadata: DatabaseMetadata, task_manager: FromDishka[TaskManager]
+    db_metadata: DatabaseMetadata,
+    task_manager: FromDishka[TaskManager],
 ) -> dict[str, str]:
     """
     Process creation of a new task.
@@ -29,12 +30,10 @@ async def create_task(
     Returns:
         TaskIdResponse: JSON with key 'taskid'.
     """
-
-    task_id = task_manager.create_task()
-
-    # Что то делаем с task_id надо типо в background task просто кинуть и кайфовать
-
-    return {"taskid": task_id}
+    data = db_metadata.to_agent_input()
+    task = asyncio.create_task(agent.run(data))
+    taskid = task_manager.add_task(task)
+    return TaskIdResponse(taskid=taskid)
 
 
 @router.get("/status", response_model=TaskStatusResponse)
@@ -50,14 +49,12 @@ async def get_task_status(
     Returns:
         TaskStatusResponse: JSON with key 'status'.
     """
-
-    return {"status": task_manager.get_task_state(taskid).value}
+    status = task_manager.get_status(taskid)
+    return TaskStatusResponse(status=status)
 
 
 @router.get("/getresult", response_model=OptimizationResponse)
-async def get_task_result(
-    taskid: str, task_manager: FromDishka[TaskManager]
-) -> OptimizationResponse:
+async def get_task_result(taskid: str, task_manager: FromDishka[TaskManager]):
     """
     Returns result of the task by taskid.
 
@@ -91,9 +88,10 @@ async def get_task_result(
     #     ddl=ddl_statements, migrations=migration_statements, queries=optimized_queries
     # )
 
-    response = task_manager.get_task_result(taskid)
+    result = task_manager.get_result(taskid)
 
-    if not response:
+    if not result:
         raise HTTPException(status_code=404, detail="Not found task result")
 
+    response = OptimizationResponse.from_agent_response(result)
     return response

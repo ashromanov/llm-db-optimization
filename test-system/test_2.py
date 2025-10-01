@@ -15,33 +15,7 @@ TRINO_HOST = "89.23.98.75"  # или хост Trino
 TRINO_PORT = 8080
 TRINO_USER = "user"
 
-# --- Загружаем JSON задачу ---
-with open("../data/flights.json", "r") as f:
-    task_data = json.load(f)
-
-# --- Отправляем задачу ---
-resp = requests.post(NEW_URL, json=task_data)
-resp.raise_for_status()
-task_id = resp.json().get("taskid", "unknown")
-print(f"Task created: {task_id}", file=sys.stderr)
-
-# --- Ожидаем выполнения ---
-while True:
-    resp = requests.get(STATUS_URL, params={"taskid": task_id})
-    resp.raise_for_status()
-    status = resp.json().get("status", "")
-    print(f"Status: {status}")
-    if status == "DONE":
-        break
-    elif status == "FAILED":
-        print("Task failed")
-        sys.exit(1)
-    time.sleep(1)
-
-# --- Получаем результаты ---
-resp = requests.get(GETRESULT_URL, params={"taskid": task_id})
-resp.raise_for_status()
-results = resp.json()
+results = ...
 
 # --- Подключение к Trino ---
 conn = trino.dbapi.connect(

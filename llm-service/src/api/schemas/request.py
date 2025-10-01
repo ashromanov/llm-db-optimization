@@ -65,7 +65,6 @@ class QueryDetails(BaseModel):
         ...,
         description="Execution time (in seconds) before optimizations.",
         ge=0,
-        example=20,
     )
 
 
@@ -90,3 +89,25 @@ class DatabaseMetadata(BaseModel):
     queries: list[QueryDetails] = Field(
         ..., description="List of frequently run queries that need to be optimized."
     )
+
+    def to_agent_input(self) -> dict:
+        """
+        Converts model to AI agent compatible dict.
+        """
+        metadata = {"url": self.url}
+        ddl_statements = [ddl.statement for ddl in self.ddl]
+        queries = [
+            {
+                "queryid": q.queryid,
+                "query": q.query,
+                "runquantity": q.runquantity,
+                "executiontime": q.executiontime,
+            }
+            for q in self.queries
+        ]
+
+        return {
+            "metadata": metadata,
+            "ddl_statements": ddl_statements,
+            "queries": queries,
+        }

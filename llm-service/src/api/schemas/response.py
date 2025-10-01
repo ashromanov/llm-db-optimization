@@ -101,6 +101,32 @@ class OptimizationResponse(BaseModel):
         description="List of optimized SQL queries.",
     )
 
+    @classmethod
+    def from_agent_response(cls, agent_output: dict) -> "OptimizationResponse":
+        """
+        Form OptimizationResponse from Agent output dict.
+
+        Args:
+            agent_output (dict): Autput of an LLM agent.
+
+        Returns:
+            OptimizationResponse: Instance of OptimizationResponse class.
+        """
+        return cls(
+            ddl=[
+                DDLStatement(statement=stmt)
+                for stmt in agent_output["out_ddl_statements"]
+            ],
+            migrations=[
+                MigrationStatement(statement=stmt)
+                for stmt in agent_output["out_migrations"]
+            ],
+            queries=[
+                OptimizedQuery(queryid=q["queryid"], query=q["query"])
+                for q in agent_output["out_queries"]
+            ],
+        )
+
 
 class TaskIdResponse(BaseModel):
     """
