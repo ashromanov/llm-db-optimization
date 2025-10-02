@@ -10,12 +10,16 @@ NEW_URL = "http://localhost:8000/tasks/new"
 STATUS_URL = "http://localhost:8000/tasks/status"
 GETRESULT_URL = "http://localhost:8000/tasks/getresult"
 
-# --- Конфиг Trino ---
-TRINO_HOST = "89.23.98.75"  # или хост Trino
-TRINO_PORT = 8080
-TRINO_USER = "user"
+# "url": "jdbc:trino://trino.czxqx2r9.data.bizmrg.com:443?user=hackuser&password=dovq(ozaq8ngt)oS",
 
-results = ...
+# --- Конфиг Trino ---
+TRINO_HOST = "trino.czxqx2r9.data.bizmrg.com"  # или хост Trino
+TRINO_PORT = 443
+TRINO_USER = "hackuser"
+TRINO_PASSWORD = "dovq(ozaq8ngt)oS"
+
+with open("test.json") as file:
+    results = json.load(file)
 
 # --- Подключение к Trino ---
 conn = trino.dbapi.connect(
@@ -23,7 +27,7 @@ conn = trino.dbapi.connect(
     port=TRINO_PORT,
     user=TRINO_USER,
     http_scheme="https" if TRINO_PORT == 443 else "http",
-    auth=trino.auth.BasicAuthentication(TRINO_USER, ""),
+    auth=trino.auth.BasicAuthentication(TRINO_USER, TRINO_PASSWORD),
 )
 cursor = conn.cursor()
 
@@ -59,6 +63,8 @@ for item in results.get("migrations", []):
     print(f"Executing DDL: {statement}")
     cursor.execute(statement)
 
+results_summary = []  # тут будем хранить (queryid, time)
+
 for query_item in results.get("queries", []):
     query = query_item["query"]
 
@@ -69,9 +75,26 @@ for query_item in results.get("queries", []):
     query = query.replace(";", "")
 
     print(f"Executing Query: {query}")
-    cursor.execute(query)
-    rows = cursor.fetchall()
-    print(f"Result of QueryID {query_item['queryid']}:")
+
+    start = time.perf_counter()
+    try:
+        cursor.execute(query)
+        rows = cursor.fetchall()
+    except Exception as e:
+        print("huihui:", e)
+        rows = []
+    end = time.perf_counter()
+
+    elapsed = end - start
+    results_summary.append((query_item["queryid"], elapsed))
+
+    print(f"Result of QueryID {query_item['queryid']}: (took {elapsed:.4f}s)")
     for row in rows:
         print(row)
     print("-" * 40)
+
+# финальная таблица
+print("\nFinal summary (QueryID | Time in seconds)")
+print("-" * 40)
+for qid, t in results_summary:
+    print(f"{qid:<10} | {t:.4f}")
