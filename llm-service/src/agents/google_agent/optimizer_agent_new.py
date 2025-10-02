@@ -2,9 +2,9 @@
 Google Optimizer Agent - Multi-agent pipeline for database optimization.
 
 Architecture:
-1. AnalystAgent (Gemini 2.5 Pro) - Analyzes schema and creates optimization plan
-2. DeveloperAgent (Gemini 2.5 Pro) - Generates DDL and migrations from plan
-3. QueryOptimizerAgent (Gemini 2.5 Flash) - Rewrites queries for new schema
+1. AnalystAgent (OpenRouter) - Analyzes schema and creates optimization plan
+2. DeveloperAgent (OpenRouter) - Generates DDL and migrations from plan
+3. QueryOptimizerAgent (OpenRouter) - Rewrites queries for new schema
 
 Pipeline Flow:
   INPUT → sort_queries → analyze_schema → develop_ddl → develop_migrations → optimize_queries → OUTPUT
@@ -67,26 +67,26 @@ class GoogleOptimizerAgent:
     Multi-agent pipeline for Trino database optimization.
     
     Agents:
-    - AnalystAgent: Analyzes schema and queries, outputs natural language plan (Gemini 2.5 Pro)
-    - DeveloperAgent: Generates optimized DDL from plan (Gemini 2.5 Pro)
-    - MigrationAgent: Generates migration scripts from plan (Gemini 2.5 Pro)
-    - QueryOptimizerAgent: Rewrites queries for optimized schema (Gemini 2.5 Flash)
+    - AnalystAgent: Analyzes schema and queries, outputs natural language plan (OpenRouter)
+    - DeveloperAgent: Generates optimized DDL from plan (OpenRouter)
+    - MigrationAgent: Generates migration scripts from plan (OpenRouter)
+    - QueryOptimizerAgent: Rewrites queries for optimized schema (OpenRouter)
     """
     
-    def __init__(self, google_api_key: str):
+    def __init__(self, openrouter_api_key: str):
         """
         Initialize the optimizer agent pipeline.
         
         Args:
-            google_api_key: Google API key for Gemini models.
+            openrouter_api_key: OpenRouter API key.
         """
-        print(f"[GoogleOptimizerAgent] Initializing with API key: {google_api_key[:10]}...")
+        print(f"[GoogleOptimizerAgent] Initializing with API key: {openrouter_api_key[:10]}...")
         
         # Initialize sub-agents
-        self.analyst = AnalystAgent(google_api_key=google_api_key, temperature=0.1)
-        self.developer = DeveloperAgent(google_api_key=google_api_key, temperature=0.0)
-        self.migration = MigrationAgent(google_api_key=google_api_key, temperature=0.0)
-        self.query_optimizer = QueryOptimizerAgent(google_api_key=google_api_key, temperature=0.0)
+        self.analyst = AnalystAgent(openrouter_api_key=openrouter_api_key, temperature=0.1)
+        self.developer = DeveloperAgent(openrouter_api_key=openrouter_api_key, temperature=0.0)
+        self.migration = MigrationAgent(openrouter_api_key=openrouter_api_key, temperature=0.0)
+        self.query_optimizer = QueryOptimizerAgent(openrouter_api_key=openrouter_api_key, temperature=0.0)
         
         # Build pipeline graph
         self.graph = self.build_graph()
@@ -202,10 +202,10 @@ class GoogleOptimizerAgent:
     async def optimize_queries(self, state: State) -> State:
         """
         QUERY OPTIMIZER AGENT: Rewrite all queries for new schema in parallel.
-        Model: Gemini 2.5 Flash (fast and cost-effective)
+        Model: OpenRouter API (fast and cost-effective)
         Output: List of optimized queries
         """
-        print("\n[5/6] Running QueryOptimizerAgent (Gemini 2.5 Flash)...")
+        print("\n[5/6] Running QueryOptimizerAgent (OpenRouter API)...")
         print(f"[5/6] Optimizing {len(state['queries'])} queries in parallel...")
         
         async def _process_query(q: dict[str, Any]) -> dict[str, str]:
@@ -296,4 +296,4 @@ class GoogleOptimizerAgent:
 # ---------------------------
 # Global agent instance
 # ---------------------------
-agent = GoogleOptimizerAgent(google_api_key=settings.google_api_key)
+agent = GoogleOptimizerAgent(openrouter_api_key=settings.openrouter_api_key)

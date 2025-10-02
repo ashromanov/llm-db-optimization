@@ -1,9 +1,9 @@
 """
 Analyst Agent - Analyzes database schema and queries to create optimization plan.
-Uses Gemini 2.5 Pro for deep analytical thinking.
+Uses OpenRouter API for deep analytical thinking.
 """
 
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_openai import ChatOpenAI
 
 from .prompts_new import ANALYZE_SCHEMA
 
@@ -12,21 +12,22 @@ class AnalystAgent:
     """
     Agent responsible for analyzing database schema and query patterns.
     Output: Natural language optimization plan (NO SQL code).
-    Model: Gemini 2.5 Pro (analytical reasoning)
+    Model: OpenRouter API (analytical reasoning)
     """
     
-    MODEL_NAME = "gemini-2.5-flash"
+    MODEL_NAME = "openai/gpt-oss-20b"
     
-    def __init__(self, google_api_key: str, temperature: float = 0.1):
+    def __init__(self, openrouter_api_key: str, temperature: float = 0.1):
         """
         Initialize Analyst Agent.
         
         Args:
-            google_api_key: Google API key for Gemini.
+            openrouter_api_key: OpenRouter API key.
             temperature: Sampling temperature (0.1 for analytical consistency).
         """
-        self.llm = ChatGoogleGenerativeAI(
-            google_api_key=google_api_key,
+        self.llm = ChatOpenAI(
+            base_url="https://openrouter.ai/api/v1",
+            api_key=openrouter_api_key,
             model=self.MODEL_NAME,
             temperature=temperature,
         )

@@ -1,10 +1,10 @@
 """
 Query Optimizer Agent - Rewrites queries for optimized schema.
-Uses Gemini 2.5 Flash for fast, efficient query optimization.
+Uses OpenRouter API for fast, efficient query optimization.
 """
 
 import re
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_openai import ChatOpenAI
 
 from .prompts_new import OPTIMIZE_QUERY
 
@@ -13,21 +13,22 @@ class QueryOptimizerAgent:
     """
     Agent responsible for rewriting queries to work with new schema.
     Output: Optimized SQL queries.
-    Model: Gemini 2.5 Flash (fast, cost-effective for repetitive tasks)
+    Model: OpenRouter API (fast, cost-effective for repetitive tasks)
     """
     
-    MODEL_NAME = "gemini-2.5-flash-lite"
+    MODEL_NAME = "openai/gpt-oss-20b"
     
-    def __init__(self, google_api_key: str, temperature: float = 0.0):
+    def __init__(self, openrouter_api_key: str, temperature: float = 0.0):
         """
         Initialize Query Optimizer Agent.
         
         Args:
-            google_api_key: Google API key for Gemini.
+            openrouter_api_key: OpenRouter API key.
             temperature: Sampling temperature (0.0 for deterministic SQL generation).
         """
-        self.llm = ChatGoogleGenerativeAI(
-            google_api_key=google_api_key,
+        self.llm = ChatOpenAI(
+            base_url="https://openrouter.ai/api/v1",
+            api_key=openrouter_api_key,
             model=self.MODEL_NAME,
             temperature=temperature,
         )

@@ -1,5 +1,5 @@
 # ==========================================
-# ANALYST AGENT PROMPTS (Gemini 2.5 Pro)
+# ANALYST AGENT PROMPTS (OpenRouter API)
 # ==========================================
 
 ANALYZE_SCHEMA = (
@@ -52,7 +52,7 @@ ANALYZE_SCHEMA = (
 
 
 # ==========================================
-# DEVELOPER AGENT PROMPTS (Gemini 2.5 Pro)
+# DEVELOPER AGENT PROMPTS (OpenRouter API)
 # ==========================================
 
 DEVELOP_DDL_FROM_PLAN = (
@@ -175,7 +175,7 @@ DEVELOP_MIGRATIONS_FROM_PLAN = (
 
 
 # ==========================================
-# QUERY OPTIMIZER PROMPT (Gemini 2.5 Flash)
+# QUERY OPTIMIZER PROMPT (OpenRouter API)
 # ==========================================
 
 OPTIMIZE_QUERY = (

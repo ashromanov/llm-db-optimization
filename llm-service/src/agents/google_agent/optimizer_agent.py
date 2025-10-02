@@ -3,7 +3,7 @@ import json
 import re
 from typing import Any
 
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_openai import ChatOpenAI
 from langgraph.graph import END, START, StateGraph
 from typing_extensions import TypedDict
 
@@ -28,11 +28,12 @@ class State(TypedDict):
 # Agent
 # ---------------------------
 class GoogleOptimizerAgent:
-    MODEL_NAME = "gemini-2.5-pro"
+    MODEL_NAME = "openai/gpt-oss-20b"
 
-    def __init__(self, google_api_key: str, temperature: float = 0.0):
-        self.llm = ChatGoogleGenerativeAI(
-            google_api_key=google_api_key,
+    def __init__(self, openrouter_api_key: str, temperature: float = 0.0):
+        self.llm = ChatOpenAI(
+            base_url="https://openrouter.ai/api/v1",
+            api_key=openrouter_api_key,
             model=self.MODEL_NAME,
             temperature=temperature,
         )
@@ -207,4 +208,4 @@ class GoogleOptimizerAgent:
         return final_state.get("form_final_output", final_state)
 
 
-agent = GoogleOptimizerAgent(google_api_key="AIzaSyDqi3NrkmEd-Clbnxyuspo_1spoq-Um1KM")
+# agent = GoogleOptimizerAgent(openrouter_api_key="YOUR_API_KEY_HERE")

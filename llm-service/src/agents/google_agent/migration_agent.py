@@ -1,10 +1,10 @@
 """
 Migration Agent - Generates migration SQL scripts from optimization plan.
-Uses Gemini 2.5 Pro for safe, idempotent migration generation.
+Uses OpenRouter API for safe, idempotent migration generation.
 """
 
 import re
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_openai import ChatOpenAI
 
 from .prompts_new import DEVELOP_MIGRATIONS_FROM_PLAN
 
@@ -13,21 +13,22 @@ class MigrationAgent:
     """
     Agent responsible for generating SQL migration scripts.
     Output: Safe, idempotent migration SQL statements.
-    Model: Gemini 2.5 Pro (precise migration logic)
+    Model: OpenRouter API (precise migration logic)
     """
     
-    MODEL_NAME = "gemini-2.5-flash"
+    MODEL_NAME = "openai/gpt-oss-20b"
     
-    def __init__(self, google_api_key: str, temperature: float = 0.0):
+    def __init__(self, openrouter_api_key: str, temperature: float = 0.0):
         """
         Initialize Migration Agent.
         
         Args:
-            google_api_key: Google API key for Gemini.
+            openrouter_api_key: OpenRouter API key.
             temperature: Sampling temperature (0.0 for deterministic SQL generation).
         """
-        self.llm = ChatGoogleGenerativeAI(
-            google_api_key=google_api_key,
+        self.llm = ChatOpenAI(
+            base_url="https://openrouter.ai/api/v1",
+            api_key=openrouter_api_key,
             model=self.MODEL_NAME,
             temperature=temperature,
         )
