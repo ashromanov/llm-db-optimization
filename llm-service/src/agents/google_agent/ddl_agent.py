@@ -36,7 +36,7 @@ class DDLAgent:
         Remove markdown code blocks from LLM output.
 
         Args:
-            text (str): Raw LLM output.
+            text: Raw LLM output.
 
         Returns:
             str: Cleaned text with markdown blocks removed.
@@ -44,6 +44,7 @@ class DDLAgent:
         # Remove markdown code blocks
         text = re.sub(r"^```[\w]*\n", "", text, flags=re.MULTILINE)
         text = re.sub(r"\n```$", "", text, flags=re.MULTILINE)
+        text = text.replace("\n", "")
         text = text.replace("```", "")
 
         return text.strip()
@@ -59,7 +60,7 @@ class DDLAgent:
             list[str]: List of SQL statements (one per line).
         """
         cleaned = self._strip_markdown_and_clean(text)
-        return [line.strip() for line in cleaned.split("\n") if line.strip()]
+        return [line.strip() + ";" for line in cleaned.split(";")]
 
     async def develop_ddl(
         self,

@@ -44,6 +44,7 @@ class MigrationAgent:
         # Remove markdown code blocks
         text = re.sub(r"^```[\w]*\n", "", text, flags=re.MULTILINE)
         text = re.sub(r"\n```$", "", text, flags=re.MULTILINE)
+        text = text.replace("\n", "")
         text = text.replace("```", "")
 
         return text.strip()
@@ -53,14 +54,13 @@ class MigrationAgent:
         Split SQL statements by lines.
 
         Args:
-            text (str): Raw SQL text.
+            text: Raw SQL text.
 
         Returns:
             list[str]: List of SQL statements (one per line).
         """
         cleaned = self._strip_markdown_and_clean(text)
-        # Split by newlines and keep non-empty lines
-        return [line.strip() for line in cleaned.split("\n") if line.strip()]
+        return [line.strip() + ";" for line in cleaned.split(";")]
 
     async def generate_migrations(
         self,

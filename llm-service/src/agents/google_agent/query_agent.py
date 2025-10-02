@@ -45,6 +45,7 @@ class QueryAgent:
         # Remove markdown code blocks
         text = re.sub(r"^```[\w]*\n", "", text, flags=re.MULTILINE)
         text = re.sub(r"\n```$", "", text, flags=re.MULTILINE)
+        text = text.replace("\n", "")
         text = text.replace("```", "")
 
         return text.strip()
