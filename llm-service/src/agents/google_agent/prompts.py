@@ -59,6 +59,7 @@ Keep output under 4000 tokens. Prioritize high-impact optimizations."""
 
 DEVELOP_DDL_FROM_PLAN = """
 !!!BE SHORT AND CONCISE IN YOUR ANSWER, OUTPUT AS LITTLE TEXT AS POSSIBLE!!!
+!!!DO NOT USE PARTITIONING AT ALL, DO NOT USE PARTITIONS!!!
 Role: Senior Database Migration Developer
 Stack: Trino + Iceberg
 
@@ -123,6 +124,7 @@ ERROR HANDLING:
 
 DEVELOP_MIGRATIONS_FROM_PLAN = """
 !!!BE SHORT AND CONCISE IN YOUR ANSWER, OUTPUT AS LITTLE TEXT AS POSSIBLE!!!
+!!!DO NOT USE PARTITIONING AT ALL, DO NOT USE PARTITIONS!!!
 Role: Senior Database Migration Developer
 Stack: Trino + Iceberg
 
@@ -158,7 +160,6 @@ DATA TRANSFORMATION PATTERNS:
 - Type casting: CAST(old_col AS new_type)
 - Column splitting: Parse VARCHAR into structured ROW
 - Column merging: Concatenate or compute new columns
-- Deduplication: Use ROW_NUMBER() OVER (PARTITION BY key ORDER BY timestamp DESC) WHERE rn = 1
 - Filtering: Apply WHERE clauses to exclude invalid/archived data
 
 TABLE SPLIT/MERGE HANDLING:
@@ -196,6 +197,7 @@ ERROR HANDLING:
 
 OPTIMIZE_QUERY = """
 !!!BE SHORT AND CONCISE IN YOUR ANSWER, OUTPUT AS LITTLE TEXT AS POSSIBLE!!!
+!!!DO NOT USE PARTITIONING AT ALL, DO NOT USE PARTITIONS!!!
 Role: SQL Performance Engineer
 Stack: Trino + Iceberg
 
