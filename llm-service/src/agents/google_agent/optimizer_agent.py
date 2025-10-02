@@ -5,6 +5,7 @@ from typing import Any
 
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.graph import END, START, StateGraph
+from loguru import logger
 from typing_extensions import TypedDict
 
 from . import prompts
@@ -93,7 +94,6 @@ class GoogleOptimizerAgent:
             "UPDATE",
             "DELETE",
             "SELECT",
-            "ALTER",
         ]
         lines = [
             line
@@ -116,8 +116,14 @@ class GoogleOptimizerAgent:
         return [line.strip() for line in cleaned.split("\n")]
 
     async def _invoke_llm(self, prompt: str) -> str:
+        """
+        Invoke LLM with logging of input and output.
+        """
+        logger.debug("LLM Request:\n{}", prompt)
         result = await self.llm.ainvoke(prompt)
-        return result.content
+        response = result.content
+        logger.debug("LLM Response:\n{}", response)
+        return response
 
     # -------- Nodes --------
     def sort_queries_by_total_time(self, state: State) -> State:
@@ -125,7 +131,7 @@ class GoogleOptimizerAgent:
         Sort by (runquantity * executiontime) descending.
         Missing values treated as zero.
         """
-        print("sort_queries_by_total_time")
+        logger.info("sort_queries_by_total_time")
         state["queries"] = sorted(
             state["queries"],
             key=lambda q: q["runquantity"] * q["executiontime"],
@@ -134,7 +140,7 @@ class GoogleOptimizerAgent:
         return state
 
     async def create_new_ddl_statements(self, state: State) -> State:
-        print("create_new_ddl_statements")
+        logger.info("create_new_ddl_statements")
         ddl_statements = "\n".join(state["ddl_statements"])
         queries_block = "\n".join(
             [
@@ -155,7 +161,7 @@ class GoogleOptimizerAgent:
         return state
 
     async def create_migrations(self, state: State) -> State:
-        print("create_migrations")
+        logger.info("create_migrations")
         old_ddl = "\n".join(state["ddl_statements"])
         new_ddl = "\n".join(state["out_ddl_statements"])
         prompt_text = prompts.CREATE_MIGRATIONS.format(
@@ -167,7 +173,7 @@ class GoogleOptimizerAgent:
         return state
 
     async def optimize_queries(self, state: State) -> State:
-        print("optimize_queries")
+        logger.info("optimize_queries")
 
         migrations = "\n".join(state["out_migrations"])
 
@@ -188,7 +194,7 @@ class GoogleOptimizerAgent:
         return state
 
     def form_final_output(self, state: State) -> dict:
-        print("form_final_output")
+        logger.info("form_final_output")
         return {
             "out_ddl_statements": state["out_ddl_statements"],
             "out_migrations": state["out_migrations"],
@@ -203,7 +209,7 @@ class GoogleOptimizerAgent:
             queries=data["queries"],
         )
         final_state = await self.graph.ainvoke(initial_state)
-        print(json.dumps(final_state.get("form_final_output", final_state)))
+        logger.info(json.dumps(final_state.get("form_final_output", final_state)))
         return final_state.get("form_final_output", final_state)
 
 

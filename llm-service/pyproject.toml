@@ -10,6 +10,7 @@ dependencies = [
     "langchain>=0.3.27",
     "langchain-google-genai>=2.1.12",
     "langgraph>=0.6.7",
+    "loguru>=0.7.3",
     "pydantic-settings>=2.11.0",
     "sqlglot[rs]>=27.20.0",
     "uvicorn[standard]>=0.37.0",
