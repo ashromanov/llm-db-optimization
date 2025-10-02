@@ -1,6 +1,6 @@
 [project]
 name = "llm-service"
-version = "0.1.0"
+version = "0.0.1"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
@@ -11,6 +11,7 @@ dependencies = [
     "langchain-google-genai>=2.1.12",
     "langgraph>=0.6.7",
     "pydantic-settings>=2.11.0",
+    "sqlglot[rs]>=27.20.0",
     "uvicorn[standard]>=0.37.0",
     "uvloop>=0.21.0",
 ]

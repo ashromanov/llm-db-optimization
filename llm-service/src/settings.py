@@ -8,10 +8,13 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class AppSettings(BaseSettings):
     """
     Settings for FastAPI application.
-
-    Args:
-        BaseSettings (_type_): _description_
     """
 
+    google_api_key: str
 
-# class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env", env_file_encoding="utf-8", extra="ignore"
+    )
+
+
+settings = AppSettings()

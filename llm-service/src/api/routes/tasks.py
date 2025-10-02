@@ -4,7 +4,7 @@ from dishka.integrations.fastapi import DishkaRoute, FromDishka
 from fastapi import APIRouter
 from fastapi.exceptions import HTTPException
 
-from src.agents.google_agent.optimizer_agent import agent
+from src.agents.query_optimizer.optimizer_agent import agent
 from src.api.schemas.request import DatabaseMetadata
 from src.api.schemas.response import (
     OptimizationResponse,
@@ -64,30 +64,6 @@ async def get_task_result(taskid: str, task_manager: FromDishka[TaskManager]):
     Returns:
         result (OptimizationResponse): Result of task execution.
     """
-    # ddl_statements = [
-    #     DDLStatement(statement="CREATE TABLE users (id INT PRIMARY KEY, name TEXT);"),
-    #     DDLStatement(
-    #         statement="CREATE TABLE orders (id INT PRIMARY KEY, user_id INT, amount DECIMAL);"
-    #     ),
-    # ]
-    # migration_statements = [
-    #     MigrationStatement(statement="INSERT INTO users SELECT * FROM old_users;"),
-    #     MigrationStatement(statement="INSERT INTO orders SELECT * FROM old_orders;"),
-    # ]
-    # optimized_queries = [
-    #     OptimizedQuery(
-    #         queryid=str(uuid.uuid4()),
-    #         query="SELECT id, name FROM users WHERE id > 100;",
-    #     ),
-    #     OptimizedQuery(
-    #         queryid=str(uuid.uuid4()),
-    #         query="SELECT user_id, SUM(amount) FROM orders GROUP BY user_id;",
-    #     ),
-    # ]
-    # response = OptimizationResponse(
-    #     ddl=ddl_statements, migrations=migration_statements, queries=optimized_queries
-    # )
-
     result = task_manager.get_result(taskid)
 
     if not result:
