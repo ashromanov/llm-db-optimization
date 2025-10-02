@@ -147,8 +147,8 @@ class GoogleOptimizerAgent:
             ]
         )
         prompt_text = prompts.CREATE_NEW_DDL_STATEMENTS.format(
-            input_ddl_statements=ddl_statements,
-            input_queries=queries_block,
+            ddl_statements=ddl_statements,
+            queries=queries_block,
         )
         result = await self._invoke_llm(prompt_text)
         state["out_ddl_statements"] = self._split_clean(result)
@@ -159,8 +159,8 @@ class GoogleOptimizerAgent:
         old_ddl = "\n".join(state["ddl_statements"])
         new_ddl = "\n".join(state["out_ddl_statements"])
         prompt_text = prompts.CREATE_MIGRATIONS.format(
-            input_ddl_statements=old_ddl,
-            output_ddl_statements=new_ddl,
+            old_ddl=old_ddl,
+            new_ddl=new_ddl,
         )
         result = await self._invoke_llm(prompt_text)
         state["out_migrations"] = self._split_clean(result)
@@ -169,11 +169,11 @@ class GoogleOptimizerAgent:
     async def optimize_queries(self, state: State) -> State:
         print("optimize_queries")
 
-        migration_text = "\n".join(state["out_migrations"])
+        migrations = "\n".join(state["out_migrations"])
 
         async def _process_query(q: dict[str, Any]) -> dict[str, str]:
             prompt_text = prompts.OPTIMIZE_QUERY.format(
-                migration_commands=migration_text,
+                migrations=migrations,
                 query=q["query"],
             )
             raw_query = await self._invoke_llm(prompt_text)
