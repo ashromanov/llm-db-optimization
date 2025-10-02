@@ -77,8 +77,6 @@ Optimization Plan:
 {optimization_plan}
 Source DDL:
 {ddl_statements}
-Query Workload:
-{queries}
 
 TASK: Generate DDL statements for optimized schema.
 
