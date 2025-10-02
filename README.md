@@ -89,7 +89,7 @@ http://localhost:8000/docs
 
 ```json
 {
-  "status": "pending | running | completed | failed"
+  "status": "DONE | RUNNING | FAILED"
 }
 ```
 
