@@ -16,7 +16,7 @@ class QueryAgent:
     Model: Gemini 2.5 Flash (fast, cost-effective for repetitive tasks)
     """
 
-    MODEL_NAME = "gemini-2.5-flash-lite"
+    MODEL_NAME = "gemini-2.5-flash"
 
     def __init__(self, google_api_key: str, temperature: float = 0.0):
         """
