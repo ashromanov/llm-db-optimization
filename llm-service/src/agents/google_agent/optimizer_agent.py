@@ -30,7 +30,7 @@ class State(TypedDict):
 class GoogleOptimizerAgent:
     MODEL_NAME = "gemini-2.5-pro"
 
-    def __init__(self, google_api_key: str, temperature: float = 0.0):
+    def __init__(self, google_api_key: str, temperature: float = 0.3):
         self.llm = ChatGoogleGenerativeAI(
             google_api_key=google_api_key,
             model=self.MODEL_NAME,

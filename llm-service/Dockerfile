@@ -16,7 +16,7 @@ FROM python:3.13-slim-bookworm
 
 WORKDIR /app
 
-ARG APP_UID=10001
+ARG APP_UID=10001   
 ARG APP_GID=10001
 
 RUN groupadd -g ${APP_GID} appgroup && \
