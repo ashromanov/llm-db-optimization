@@ -17,20 +17,22 @@
 ## 📊 Архитектура
 
 ```mermaid
-    Client[👤 Клиент] --> |HTTP Request| --> API[🌐 FastAPI Server]
-    
+flowchart TB
+    Client[👤 Клиент] -->|HTTP Request| API[🌐 FastAPI Server]
     API --> TaskManager[📋 Task Manager]
     TaskManager --> Optimizer[🤖 LLM Optimizer Agent]
     Optimizer --> DDLAgent[📝 DDL Agent]
     Optimizer --> QueryAgent[🔍 Query Agent]
     Optimizer --> MigrationAgent[🔄 Migration Agent]
 
-    DDLAgent[📝 DDL Agent] --> Optimizer
-    QueryAgent[🔍 Query Agent] --> Optimizer
-    MigrationAgent[🔄 Migration Agent] --> Optimizer
+    DDLAgent --> Optimizer
+    QueryAgent --> Optimizer
+    MigrationAgent --> Optimizer
+
     Optimizer --> Results[✅ Results Storage]
     Results --> API
 ```
+
 
 ## Запуск решения:
 
