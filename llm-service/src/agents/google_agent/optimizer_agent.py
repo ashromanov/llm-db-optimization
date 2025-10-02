@@ -1,13 +1,19 @@
+"""
+Google Optimizer Agent - Multi-agent pipeline for database optimization.
+"""
+
 import asyncio
-import json
-import re
 from typing import Any
 
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.graph import END, START, StateGraph
 from typing_extensions import TypedDict
 
-from . import prompts
+from src.settings import settings
+
+from .analyst_agent import AnalystAgent
+from .ddl_agent import DDLAgent
+from .migration_agent import MigrationAgent
+from .query_agent import QueryAgent
 
 
 # ---------------------------
@@ -18,6 +24,8 @@ class State(TypedDict):
     metadata: dict[str, str]
     ddl_statements: list[str]
     queries: list[dict[str, str | int]]
+    # Intermediate
+    optimization_plan: str
     # Output
     out_ddl_statements: list[str]
     out_migrations: list[str]
@@ -25,186 +33,226 @@ class State(TypedDict):
 
 
 # ---------------------------
-# Agent
+# Main Agent Pipeline
 # ---------------------------
 class GoogleOptimizerAgent:
-    MODEL_NAME = "gemini-2.5-pro"
+    """
+    Multi-agent pipeline for Trino database optimization.
+    """
 
-    def __init__(self, google_api_key: str, temperature: float = 0.0):
-        self.llm = ChatGoogleGenerativeAI(
-            google_api_key=google_api_key,
-            model=self.MODEL_NAME,
-            temperature=temperature,
+    def __init__(self, google_api_key: str):
+        """
+        Initialize the optimizer agent pipeline.
+
+        Args:
+            google_api_key: Google API key for Gemini models.
+        """
+        print("[GoogleOptimizerAgent] Initializing...")
+
+        # Initialize sub-agents
+        self.analyst_agent = AnalystAgent(
+            google_api_key=google_api_key, temperature=0.2
         )
+        self.ddl_agent = DDLAgent(google_api_key=google_api_key, temperature=0.0)
+        self.migration_agent = MigrationAgent(
+            google_api_key=google_api_key, temperature=0.0
+        )
+        self.query_agent = QueryAgent(google_api_key=google_api_key, temperature=0.0)
+
+        # Build pipeline graph
         self.graph = self.build_graph()
+
+        print("[GoogleOptimizerAgent] ✓ Pipeline initialized with 4 agents")
 
     # -------- Graph construction --------
     def build_graph(self):
         """
-        Construct final agent graph.
+        Construct the agent pipeline graph.
         """
         workflow = StateGraph(State)
 
         # Add nodes
         workflow.add_node("sort_queries_by_total_time", self.sort_queries_by_total_time)
-        workflow.add_node("create_new_ddl_statements", self.create_new_ddl_statements)
-        workflow.add_node("create_migrations", self.create_migrations)
+        workflow.add_node("analyze_schema", self.analyze_schema)
+        workflow.add_node("develop_ddl", self.develop_ddl)
+        workflow.add_node("generate_migrations", self.generate_migrations)
         workflow.add_node("optimize_queries", self.optimize_queries)
         workflow.add_node("form_final_output", self.form_final_output)
 
-        # Add edges between nodes
+        # Add edges
         workflow.add_edge(START, "sort_queries_by_total_time")
-        workflow.add_edge("sort_queries_by_total_time", "create_new_ddl_statements")
-        workflow.add_edge("create_new_ddl_statements", "create_migrations")
-        workflow.add_edge("create_migrations", "optimize_queries")
+        workflow.add_edge("sort_queries_by_total_time", "analyze_schema")
+        workflow.add_edge("analyze_schema", "develop_ddl")
+        workflow.add_edge("develop_ddl", "generate_migrations")
+        workflow.add_edge("generate_migrations", "optimize_queries")
         workflow.add_edge("optimize_queries", "form_final_output")
         workflow.add_edge("form_final_output", END)
 
         return workflow.compile()
 
-    # -------- Helper utilities --------
-    def _strip_markdown_and_clean(self, text: str) -> str:
-        """
-        Remove markdown code blocks and clean SQL output.
+    # -------- Pipeline Nodes --------
 
-        Args:
-            text (str): Input text.
-
-        Returns:
-            str: Cleaned text.
-        """
-        # Remove markdown code blocks
-        text = re.sub(r"^```[\w]*\n", "", text, flags=re.MULTILINE)
-        text = re.sub(r"\n```$", "", text, flags=re.MULTILINE)
-        text = text.replace("```", "")
-
-        # Remove SQL comments
-        text = re.sub(r"--[^\n]*", "", text)
-        text = re.sub(r"/\*.*?\*/", "", text, flags=re.DOTALL)
-
-        # Remove leading/trailing whitespace per line
-        lines = [line.strip() for line in text.split("\n")]
-
-        # Filter out empty lines and non-SQL lines WITHOUT DROP
-        sql_keywords = [
-            "CREATE",
-            "ALTER",
-            "INSERT",
-            "UPDATE",
-            "DELETE",
-            "SELECT",
-            "ALTER",
-        ]
-        lines = [
-            line
-            for line in lines
-            if line and any(line.upper().startswith(kw) for kw in sql_keywords)
-        ]
-        return "\n".join(lines)
-
-    def _split_clean(self, text: str) -> list[str]:
-        """
-        Split and clean SQL statements.
-
-        Args:
-            text (str): Text to be split in lines.
-
-        Returns:
-            list[str]: Cleaned lines from input text.
-        """
-        cleaned = self._strip_markdown_and_clean(text)
-        return [line.strip() for line in cleaned.split("\n")]
-
-    async def _invoke_llm(self, prompt: str) -> str:
-        result = await self.llm.ainvoke(prompt)
-        return result.content
-
-    # -------- Nodes --------
     def sort_queries_by_total_time(self, state: State) -> State:
         """
-        Sort by (runquantity * executiontime) descending.
-        Missing values treated as zero.
+        Sort queries by impact (runquantity × executiontime) descending.
         """
-        print("sort_queries_by_total_time")
+        print("\n[1/6] Sorting queries by impact...")
+
         state["queries"] = sorted(
             state["queries"],
-            key=lambda q: q["runquantity"] * q["executiontime"],
+            key=lambda q: q.get("runquantity", 0) * q.get("executiontime", 0),
             reverse=True,
         )
+
+        print(f"[1/6] ✓ Sorted {len(state['queries'])} queries")
         return state
 
-    async def create_new_ddl_statements(self, state: State) -> State:
-        print("create_new_ddl_statements")
-        ddl_statements = "\n".join(state["ddl_statements"])
-        queries_block = "\n".join(
-            [
-                (
-                    f"Execution time: {q.get('executiontime')}\n"
-                    f"Run quantity: {q.get('runquantity')}\n"
-                    f"Query:\n{q.get('query')}"
-                )
-                for q in state["queries"][:10]
-            ]
+    async def analyze_schema(self, state: State) -> State:
+        """
+        Analyze schema and queries, create optimization plan.
+        """
+        print("\n[2/6] Running AnalystAgent...")
+
+        optimization_plan = await self.analyst_agent.analyze(
+            ddl_statements=state["ddl_statements"],
+            queries=state["queries"],
         )
-        prompt_text = prompts.CREATE_NEW_DDL_STATEMENTS.format(
-            ddl_statements=ddl_statements,
-            queries=queries_block,
-        )
-        result = await self._invoke_llm(prompt_text)
-        state["out_ddl_statements"] = self._split_clean(result)
+
+        state["optimization_plan"] = optimization_plan
+
+        print("[2/6] ✓ Optimization plan created")
+        print(f"[2/6] Plan preview (first 100 chars):\n{optimization_plan[:100]}...\n")
+
         return state
 
-    async def create_migrations(self, state: State) -> State:
-        print("create_migrations")
-        old_ddl = "\n".join(state["ddl_statements"])
-        new_ddl = "\n".join(state["out_ddl_statements"])
-        prompt_text = prompts.CREATE_MIGRATIONS.format(
-            old_ddl=old_ddl,
-            new_ddl=new_ddl,
+    async def develop_ddl(self, state: State) -> State:
+        """
+        Develop mogration statements.
+        """
+        print("\n[3/6] Running DeveloperAgent for DDL...")
+
+        new_ddl_statements = await self.ddl_agent.develop_ddl(
+            optimization_plan=state["optimization_plan"],
+            original_ddl_statements=state["ddl_statements"],
         )
-        result = await self._invoke_llm(prompt_text)
-        state["out_migrations"] = self._split_clean(result)
+
+        state["out_ddl_statements"] = new_ddl_statements
+
+        print(f"[3/6] ✓ Generated {len(new_ddl_statements)} DDL statements")
+
+        return state
+
+    async def generate_migrations(self, state: State) -> State:
+        """
+        Generate migration statements from plan.
+        """
+        print("\n[4/6] Running MigrationAgent...")
+
+        migration_statements = await self.migration_agent.generate_migrations(
+            optimization_plan=state["optimization_plan"],
+            old_ddl_statements=state["ddl_statements"],
+            new_ddl_statements=state["out_ddl_statements"],
+        )
+
+        state["out_migrations"] = migration_statements
+
+        print(f"[4/6] ✓ Generated {len(migration_statements)} migration statements")
+
         return state
 
     async def optimize_queries(self, state: State) -> State:
-        print("optimize_queries")
-
-        migrations = "\n".join(state["out_migrations"])
+        """
+        Rewrite all queries for new schema in parallel.
+        """
+        print("\n[5/6] Running QueryOptimizerAgent (Gemini 2.5 Flash)...")
+        print(f"[5/6] Optimizing {len(state['queries'])} queries in parallel...")
 
         async def _process_query(q: dict[str, Any]) -> dict[str, str]:
-            prompt_text = prompts.OPTIMIZE_QUERY.format(
-                migrations=migrations,
+            optimized_query = await self.query_agent.optimize_query(
                 query=q["query"],
+                migration_commands=state["out_migrations"],
             )
-            raw_query = await self._invoke_llm(prompt_text)
-            new_query = self._strip_markdown_and_clean(raw_query)
             return {
                 "queryid": q["queryid"],
-                "query": new_query,
+                "query": optimized_query,
             }
 
+        # Process all queries in parallel
         tasks = [_process_query(q) for q in state["queries"]]
         state["out_queries"] = await asyncio.gather(*tasks)
+
+        print(f"[5/6] ✓ Optimized {len(state['out_queries'])} queries")
+
         return state
 
     def form_final_output(self, state: State) -> dict:
-        print("form_final_output")
-        return {
+        """
+        Form final output dictionary.
+        """
+        print("\n[6/6] Forming final output...")
+
+        result = {
             "out_ddl_statements": state["out_ddl_statements"],
             "out_migrations": state["out_migrations"],
             "out_queries": state["out_queries"],
         }
 
+        print("[6/6] ✓ Pipeline complete!")
+        print("Final results:")
+        print(f"  - DDL statements: {len(result['out_ddl_statements'])}")
+        print(f"  - Migrations: {len(result['out_migrations'])}")
+        print(f"  - Optimized queries: {len(result['out_queries'])}")
+
+        return result
+
     # -------- Public API --------
+
     async def run(self, data: dict) -> dict:
+        """
+        Run the optimization pipeline.
+
+        Args:
+            data: Input data with keys:
+                - metadata: Database connection metadata
+                - ddl_statements: List of DDL statements
+                - queries: List of queries with metrics
+
+        Returns:
+            dict: Optimization results with keys:
+                - out_ddl_statements: List of optimized DDL statements
+                - out_migrations: List of migration SQL statements
+                - out_queries: List of optimized queries
+        """
+        print("\n" + "=" * 80)
+        print("GOOGLE OPTIMIZER AGENT PIPELINE")
+        print("=" * 80)
+
         initial_state = State(
             metadata=data["metadata"],
             ddl_statements=data["ddl_statements"],
             queries=data["queries"],
+            optimization_plan="",
+            out_ddl_statements=[],
+            out_migrations=[],
+            out_queries=[],
         )
+
         final_state = await self.graph.ainvoke(initial_state)
-        print(json.dumps(final_state.get("form_final_output", final_state)))
-        return final_state.get("form_final_output", final_state)
+
+        # Extract final output
+        result = final_state.get("form_final_output", final_state)
+
+        print("\n" + "=" * 80)
+        print("PIPELINE EXECUTION COMPLETE")
+        print("=" * 80 + "\n")
+
+        # Optional: print full result as JSON
+        # print(json.dumps(result, indent=2, ensure_ascii=False))
+
+        return result
 
 
-agent = GoogleOptimizerAgent(google_api_key="AIzaSyDqi3NrkmEd-Clbnxyuspo_1spoq-Um1KM")
+# ---------------------------
+# Global agent instance
+# ---------------------------
+agent = GoogleOptimizerAgent(google_api_key=settings.google_api_key)

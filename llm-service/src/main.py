@@ -13,4 +13,4 @@ setup_dishka(container=di_container, app=app)
 
 @app.get("/")
 async def root():
-    return {"message": "Hello Bigger Applications!"}
+    return {"message": "Hello, World!"}
