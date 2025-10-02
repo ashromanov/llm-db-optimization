@@ -30,7 +30,7 @@ docker-compose up -d
 http://localhost:8000
 ```
 
-4. Swagger документация будет достна по адресу:
+4. Swagger документация будет доступна по адресу:
 
 ```
 http://localhost:8000/docs
