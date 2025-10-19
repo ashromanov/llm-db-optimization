@@ -48,7 +48,7 @@ class QueryOptimizerAgent:
         self,
         google_api_key: str,
         temperature: float = 0.2,
-        model_name: str = "gemini-2.5-pro",
+        model_name: str = "gemini-2.5-flash-lite",
     ):
         """
         Initialize the query optimizer agent.

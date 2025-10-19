@@ -3,6 +3,7 @@ import json
 import logging
 import re
 from typing import Any
+from urllib.parse import parse_qs, urlparse
 
 import sqlglot
 from langchain_openai import ChatOpenAI
@@ -16,6 +17,38 @@ from . import prompts
 
 # Configure logging
 logger = logging.getLogger(__name__)
+
+
+def ddl_list_to_schema(ddls: list[str], dialect: str = "trino") -> sqlglot.Schema:
+    """
+    Convert a list of DDL (CREATE TABLE) statements into a SQLGlot Schema object.
+
+    Args:
+        ddls (list[str]): List of DDL SQL strings.
+        dialect (str): SQL dialect (e.g., 'mysql', 'bigquery', 'ansi').
+
+    Returns:
+        sqlglot.optimizer.schema.Schema: Schema ready for sqlglot.optimize()
+    """
+    tables: dict[str, dict[str, str]] = {}
+
+    for ddl in ddls:
+        expr = sqlglot.parse_one(ddl, read=dialect)
+        if not isinstance(expr, sqlglot.exp.Create):
+            continue
+
+        table_name = expr.this.name
+        columns = {}
+
+        for column in expr.find_all(sqlglot.exp.ColumnDef):
+            col_name = column.name
+            col_type_expr = column.args.get("kind")
+            col_type = col_type_expr.this if col_type_expr else "UNKNOWN"
+            columns[col_name] = str(col_type).upper()
+
+        tables[table_name] = columns
+
+    return tables
 
 
 # ---------------------------
@@ -48,7 +81,7 @@ class QueryOptimizerAgent:
         self,
         api_key: str,
         base_url: str,
-        temperature: float = 0.2,
+        temperature: float = 0.1,
         model_name: str = "defog/llama-3-sqlcoder-8b",
     ):
         """
@@ -66,7 +99,87 @@ class QueryOptimizerAgent:
             model=model_name,
             temperature=temperature,
         )
+        # SQLGlot configuration defaults
+        self.dialect = "trino"
+        self.db = None
+        self.catalog = None
+
         self.graph = self._build_graph()
+
+    @staticmethod
+    def _parse_jdbc_url(jdbc_url: str) -> dict[str, str | None]:
+        """
+        Parse JDBC URL to extract database configuration.
+
+        Args:
+            jdbc_url: JDBC connection string
+                     (e.g., 'jdbc:trino://host:443?user=x&password=y')
+
+        Returns:
+            Dictionary with 'dialect', 'db', 'catalog', and 'host'.
+        """
+        try:
+            # Remove jdbc: prefix
+            if jdbc_url.startswith("jdbc:"):
+                jdbc_url = jdbc_url[5:]
+
+            # Extract dialect from scheme
+            parsed = urlparse(jdbc_url)
+            dialect = parsed.scheme.lower() if parsed.scheme else "trino"
+
+            # Map common JDBC dialects to SQLGlot dialects
+            dialect_mapping = {
+                "postgresql": "postgres",
+                "mysql": "mysql",
+                "trino": "trino",
+                "presto": "presto",
+                "hive": "hive",
+                "snowflake": "snowflake",
+                "bigquery": "bigquery",
+            }
+            dialect = dialect_mapping.get(dialect, dialect)
+
+            # Extract database and catalog from path
+            path = parsed.path.lstrip("/")
+            db = None
+            catalog = None
+
+            if path:
+                parts = path.split("/")
+                if len(parts) >= 1:
+                    catalog = parts[0]
+                if len(parts) >= 2:
+                    db = parts[1]
+
+            # Parse query parameters for additional config
+            query_params = parse_qs(parsed.query)
+
+            # Some JDBC drivers use schema/catalog in query params
+            if not catalog and "catalog" in query_params:
+                catalog = query_params["catalog"][0]
+            if not db and "schema" in query_params:
+                db = query_params["schema"][0]
+
+            logger.info(
+                f"Parsed JDBC URL - dialect: {dialect}, "
+                f"catalog: {catalog}, db: {db}, host: {parsed.hostname}"
+            )
+
+            return {
+                "dialect": dialect,
+                "db": db,
+                "catalog": catalog,
+                "host": parsed.hostname,
+            }
+
+        except Exception as e:
+            logger.warning(f"Failed to parse JDBC URL: {e}. Using defaults.")
+            return {
+                "dialect": "trino",
+                "db": None,
+                "catalog": None,
+                "host": None,
+            }
 
     def _build_graph(self):
         """
@@ -129,68 +242,133 @@ class QueryOptimizerAgent:
             logger.error(f"LLM invocation failed: {e}")
             raise e
 
-    def _parse_and_optimize_sql(self, query: str) -> str:
+    def _validate_sql(self, query: str) -> tuple[bool, str]:
         """
-        Parse and optimize SQL query using sqlglot.
+        Validate SQL query syntax using sqlglot.
 
         Args:
-            query (str): SQL query string.
+            query: SQL query string to validate.
 
         Returns:
-            str: Optimized SQL query string.
-
-        Raises:
-            SQLParseError: If SQL parsing fails.
+            Tuple of (is_valid, error_message). error_message is empty if valid.
         """
         try:
-            parsed = sqlglot.parse_one(query, read="trino")
-            optimized = optimize(parsed)
-            return str(optimized)
+            parsed = sqlglot.parse_one(query, read=self.dialect)
+            if parsed is None:
+                return False, "Failed to parse query"
+            # Additional validation: try to transpile back
+            parsed.sql(dialect=self.dialect)
+            return True, ""
         except Exception as e:
-            logger.error(
-                f"SQL parsing/optimization failed for query: {query};Error: {e}"
-            )
-            raise Exception(f"Failed to parse/optimize SQL: {e}") from e
+            return False, str(e)
 
-    async def _process_single_query(self, query_data: dict[str, str]) -> dict[str, str]:
+    def _parse_and_optimize_sql(
+        self, query: str, schema: dict[str, dict[str, str]]
+    ) -> tuple[str, bool]:
         """
-        Process and optimize a single query.
+        Parse and optimize SQL query using sqlglot with full validation.
 
         Args:
-            query_data (dict[str, str]): Dictionary containing 'queryid' and 'query'.
+            query: SQL query string.
+            schema: Schema dictionary for optimization.
+
+        Returns:
+            Tuple of (optimized_query, success_flag).
+        """
+        try:
+            # Validate input query
+            is_valid, error = self._validate_sql(query)
+            if not is_valid:
+                logger.warning(f"Input query validation failed: {error}")
+                return query, False
+
+            # Parse and optimize with full parameters
+            parsed = sqlglot.parse_one(query, read=self.dialect)
+            optimized = optimize(
+                parsed,
+                schema=schema,
+                db=self.db,
+                catalog=self.catalog,
+                dialect=self.dialect,
+            )
+
+            # Generate SQL and validate output
+            optimized_sql = optimized.sql(dialect=self.dialect).replace('"', "")
+            is_valid, error = self._validate_sql(optimized_sql)
+
+            if not is_valid:
+                logger.warning(f"Optimized query validation failed: {error}")
+                return query, False
+
+            return optimized_sql, True
+
+        except Exception as e:
+            logger.error(f"SQL optimization failed: {e}")
+            return query, False
+
+    async def _process_single_query(
+        self, query_data: dict[str, str], ddls: list[str]
+    ) -> dict[str, str]:
+        """
+        Process and optimize a single query with robust fallback logic.
+
+        Fallback chain:
+        1. LLM optimization → SQLGlot validation + optimization
+        2. If fails → Original query → SQLGlot validation + optimization
+        3. If fails → Return original query as-is
+
+        Args:
+            query_data: Dictionary containing 'queryid' and 'query'.
+            ddls: List of DDL statements for schema.
 
         Returns:
             Dictionary with optimized query and ID.
         """
         query_id = query_data["queryid"]
         original_query = query_data["query"]
+        schema = ddl_list_to_schema(ddls, dialect=self.dialect)
+        ddls_text = "\n".join(ddls)
 
+        # Step 1: Try LLM optimization
         try:
-            # Get LLM optimization suggestion
-            prompt = prompts.OPTIMIZE_QUERY.format(query=original_query)
+            prompt = prompts.OPTIMIZE_QUERY.format(query=original_query, ddls=ddls_text)
             llm_response = await self._invoke_llm(prompt)
-
-            # Clean and parse LLM output
             cleaned_query = self._clean_llm_output(llm_response)
 
-            # Apply sqlglot optimization twice: once for pretty formatting, once for final
-            pretty_optimized = self._parse_and_optimize_sql(cleaned_query)
-            final_optimized = self._parse_and_optimize_sql(pretty_optimized)
-
-            logger.info(f"Successfully optimized query {query_id}")
-            return {
-                "queryid": str(query_id),
-                "query": final_optimized,
-            }
-        except Exception as e:
-            logger.warning(
-                f"Failed to optimize query {query_id}: {e}. Returning original."
+            # Validate and optimize LLM output
+            optimized_query, success = self._parse_and_optimize_sql(
+                cleaned_query, schema
             )
-            # Fallback to original query on error
-            return {
-                "queryid": str(query_id),
-                "query": original_query,
-            }
+
+            if success:
+                logger.info(f"Successfully optimized query {query_id} via LLM")
+                return {"queryid": str(query_id), "query": optimized_query}
+
+            logger.warning(f"LLM output invalid for query {query_id}, trying original")
+
+        except Exception as e:
+            logger.warning(f"LLM optimization failed for query {query_id}: {e}")
+
+        # Step 2: Fallback to optimizing original query
+        try:
+            optimized_query, success = self._parse_and_optimize_sql(
+                original_query, schema
+            )
+
+            if success:
+                logger.info(f"Optimized original query {query_id} via SQLGlot only")
+                return {"queryid": str(query_id), "query": optimized_query}
+
+            logger.warning(
+                f"Original query optimization failed for {query_id}, returning as-is"
+            )
+
+        except Exception as e:
+            logger.warning(f"Fallback optimization failed for query {query_id}: {e}")
+
+        # Step 3: Final fallback - return original unchanged
+        logger.info(f"Returning original query {query_id} unchanged")
+        return {"queryid": str(query_id), "query": original_query}
 
     async def _optimize_queries_node(self, state: State) -> State:
         """
@@ -204,7 +382,10 @@ class QueryOptimizerAgent:
         """
         logger.info(f"Optimizing {len(state['queries'])} queries...")
 
-        tasks = [self._process_single_query(q) for q in state["queries"]]
+        tasks = [
+            self._process_single_query(q, state["ddl_statements"])
+            for q in state["queries"]
+        ]
         optimized_queries = await asyncio.gather(*tasks, return_exceptions=False)
 
         state["out_queries"] = optimized_queries
@@ -237,6 +418,7 @@ class QueryOptimizerAgent:
 
         Args:
             data: Input dictionary with 'metadata', 'ddl_statements', and 'queries'.
+                  metadata can be either a JDBC URL string or a dict with connection info.
 
         Returns:
             Dictionary containing optimization results.
@@ -244,6 +426,33 @@ class QueryOptimizerAgent:
         Raises:
             ValueError: If required input fields are missing.
         """
+        # Extract SQLGlot configuration from metadata
+        metadata = data.get("metadata", {})
+
+        # Handle metadata as JDBC URL string or dict
+        if isinstance(metadata, str):
+            # metadata is a JDBC URL
+            jdbc_config = self._parse_jdbc_url(metadata)
+            self.dialect = jdbc_config["dialect"]
+            self.db = jdbc_config["db"]
+            self.catalog = jdbc_config["catalog"]
+        elif isinstance(metadata, dict):
+            # metadata is a dictionary (legacy support)
+            self.dialect = metadata.get("dialect", "trino")
+            self.db = metadata.get("db")
+            self.catalog = metadata.get("catalog")
+        else:
+            # Default values
+            logger.warning("Invalid metadata format. Using default configuration.")
+            self.dialect = "trino"
+            self.db = None
+            self.catalog = None
+
+        logger.info(
+            f"SQLGlot config - dialect: {self.dialect}, "
+            f"db: {self.db}, catalog: {self.catalog}"
+        )
+
         # Initialize state with proper typing
         initial_state: State = {
             "metadata": data["metadata"],
@@ -264,10 +473,7 @@ class QueryOptimizerAgent:
         return result
 
 
-agent = QueryOptimizerAgent(
-    api_key=settings.openai_api_key,
-    base_url=settings.openai_base_url,
-)
+# Initialize singleton agent instance
 agent = QueryOptimizerAgent(
     api_key=settings.openai_api_key,
     base_url=settings.openai_base_url,

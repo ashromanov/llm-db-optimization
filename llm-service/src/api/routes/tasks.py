@@ -4,7 +4,7 @@ from dishka.integrations.fastapi import DishkaRoute, FromDishka
 from fastapi import APIRouter
 from fastapi.exceptions import HTTPException
 
-from src.agents.sql_coder_query_optmizer.optimizer_agent import agent
+from src.agents.query_optimizer.optimizer_agent import agent
 from src.api.schemas.request import DatabaseMetadata
 from src.api.schemas.response import (
     OptimizationResponse,
