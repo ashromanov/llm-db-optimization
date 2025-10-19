@@ -13,10 +13,10 @@ GETRESULT_URL = "http://localhost:8000/tasks/getresult"
 # "url": "jdbc:trino://trino.czxqx2r9.data.bizmrg.com:443?user=hackuser&password=dovq(ozaq8ngt)oS",
 
 # --- Конфиг Trino ---
-TRINO_HOST = "trino.czxqx2r9.data.bizmrg.com"  # или хост Trino
-TRINO_PORT = 443
-TRINO_USER = "hackuser"
-TRINO_PASSWORD = "dovq(ozaq8ngt)oS"
+TRINO_HOST = "213.219.215.222"  # или хост Trino
+TRINO_PORT = 8080
+TRINO_USER = "testuser"
+TRINO_PASSWORD = ""
 
 with open("test.json") as file:
     results = json.load(file)
