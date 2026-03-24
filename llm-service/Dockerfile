@@ -14,9 +14,11 @@ COPY . /app
 
 FROM python:3.13-slim-bookworm
 
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
-ARG APP_UID=10001   
+ARG APP_UID=10001
 ARG APP_GID=10001
 
 RUN groupadd -g ${APP_GID} appgroup && \
@@ -32,6 +34,9 @@ COPY --from=builder --chown=appuser:appgroup /app/ ./
 
 USER appuser
 
-EXPOSE 8080
+EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
 
 CMD ["sh", "-c", "uvicorn src.main:app --host 0.0.0.0 --port 8000 --loop uvloop --workers ${WORKERS}"]

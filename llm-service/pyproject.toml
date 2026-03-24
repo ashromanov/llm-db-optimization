@@ -1,7 +1,7 @@
 [project]
-name = "llm-service"
-version = "0.0.1"
-description = "Add your description here"
+name = "ai-sql-optimizer"
+version = "0.1.0"
+description = "LLM-powered SQL & database optimization service for data lakehouses"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
@@ -9,10 +9,16 @@ dependencies = [
     "fastapi>=0.117.1",
     "langchain>=0.3.27",
     "langchain-google-genai>=2.1.12",
+    "langchain-openai>=0.3.0",
     "langgraph>=0.6.7",
     "loguru>=0.7.3",
     "pydantic-settings>=2.11.0",
     "sqlglot[rs]>=27.20.0",
     "uvicorn[standard]>=0.37.0",
     "uvloop>=0.21.0",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.15.7",
 ]

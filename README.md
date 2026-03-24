@@ -1,218 +1,161 @@
+# AI SQL Optimizer
 
-# LLM SQL & DB optimizer ⚡️
+[![Python](https://img.shields.io/badge/Python-3.13-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![LangGraph](https://img.shields.io/badge/LangGraph-1C3C3C?style=flat-square)](https://github.com/langchain-ai/langgraph)
+[![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat-square&logo=docker&logoColor=white)](https://www.docker.com/)
+[![License](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)](LICENSE)
 
-[![Python](https://img.shields.io/badge/Python-3.13-blue.svg)](https://www.python.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.109+-green.svg)](https://fastapi.tiangolo.com/)
-[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Docker](https://img.shields.io/badge/Docker-Ready-blue.svg)](https://www.docker.com/)
+LLM-powered service that automatically optimizes database schemas and SQL queries for **Data Lakehouse** environments (Trino, Apache Iceberg, S3).
 
-**Сервис для автоматической оптимизации баз данных**
-
-Используя языковые модели (LLM) и анализ метаданных Data Lakehouse (S3, Apache Iceberg, Trino, Spark), наш сервис формирует рекомендации по оптимизации хранения данных и SQL-запросов.
-
-[Запуск решения](#запуск-решения) • [API Документация](#-документация-api) • [Технологии](#️-технологический-стек)
+The service analyzes your DDL statements and SQL query workload, then generates optimized schemas, migration scripts, and rewritten queries using a multi-agent AI pipeline.
 
 ---
 
-## 📊 Архитектура
+## Architecture
 
 ```mermaid
-flowchart TB
-    Client[👤 Клиент] -->|HTTP Request| API[🌐 FastAPI Server]
-    API --> TaskManager[📋 Task Manager]
-    TaskManager --> Optimizer[🤖 LLM Optimizer Agent]
-    Optimizer --> DDLAgent[📝 DDL Agent]
-    Optimizer --> QueryAgent[🔍 Query Agent]
-    Optimizer --> MigrationAgent[🔄 Migration Agent]
+flowchart LR
+    Client -->|POST /new| API[FastAPI]
+    API --> TM[Task Manager]
+    TM --> Pipeline
 
-    DDLAgent --> Optimizer
-    QueryAgent --> Optimizer
-    MigrationAgent --> Optimizer
+    subgraph Pipeline["Optimization Pipeline (LangGraph)"]
+        direction TB
+        A[Analyst Agent] -->|plan| B[DDL Agent]
+        B -->|new schema| C[Migration Agent]
+        C -->|migrations| D[Query Agent]
+    end
 
-    Optimizer --> Results[✅ Results Storage]
-    Results --> API
+    Pipeline --> TM
+    TM -->|GET /getresult| Client
 ```
 
+**4-agent pipeline:**
+1. **Analyst** — analyzes schema & query patterns, produces optimization plan
+2. **DDL** — generates optimized CREATE TABLE / MV statements
+3. **Migration** — generates INSERT INTO ... SELECT migration scripts
+4. **Query** — rewrites each query for the new schema
 
-## Запуск решения:
+---
 
-1. Клонируйте репозиторий проекта:
+## Quick Start
 
 ```bash
-git clone git@github.com:ashromanov/llm-db-optimization.git
-cd llm-db-optimization/llm-service
-```
-2. Запустите сервис через Docker Compose:
+git clone https://github.com/ashromanov/ai-sql-optimizer.git
+cd ai-sql-optimizer/llm-service
 
-```bash
+cp .env.example .env
+# Edit .env — set your GOOGLE_API_KEY (or configure OpenRouter)
+
 docker compose up -d
 ```
 
-3. После запуска сервис будет доступен по адресу:
+Service available at `http://localhost:8000` | Swagger: `http://localhost:8000/docs`
+
+---
+
+## Configuration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `LLM_PROVIDER` | `gemini` | `gemini`, `openrouter`, or `openai_compatible` |
+| `GOOGLE_API_KEY` | — | Google API key (required for Gemini) |
+| `GEMINI_MODEL` | `gemini-2.5-flash` | Gemini model name |
+| `OPENAI_API_KEY` | — | API key for OpenRouter / OpenAI-compatible |
+| `OPENAI_BASE_URL` | `https://openrouter.ai/api/v1` | Base URL for OpenAI-compatible API |
+| `OPENAI_MODEL` | `google/gemini-2.5-flash` | Model name for OpenRouter |
+| `TASK_TTL_SECONDS` | `3600` | Time before completed tasks are cleaned up |
+| `WORKERS` | `1` | Uvicorn worker count |
+
+---
+
+## API
+
+### Create optimization task
 
 ```
-http://localhost:8000
+POST /new
 ```
-
-4. Swagger документация будет доступна по адресу:
-
-```
-http://localhost:8000/docs
-```
-
-## 📚 Документация API
-### Эндпоинты для управления задачами
-
-| Метод | Endpoint | Описание |
-|-------|----------|----------|
-| `POST` | `<endpoint>/new` | Создать задачу оптимизации |
-| `GET` | `<endpoint>/status?<task_id>` | Получить статус задачи |
-| `GET` | `<endpoint>/getresult?<task_id>` | Получить результат задачи |
-#### 1. Создать задачу
-
-**POST** `<endpoint>/new`
-Создает новую задачу по оптимизации базы данных.
-
-**Тело запроса:**
 
 ```json
 {
-  "url": "trino://user:pass@localhost:5432/mydb",
+  "url": "jdbc:trino://host:443/catalog",
   "ddl": [
-    {
-      "statement": "CREATE TABLE T1 (id INT PRIMARY KEY, name VARCHAR(100));"
-      }
+    { "statement": "CREATE TABLE flights (id BIGINT, carrier VARCHAR, ...)" }
   ],
   "queries": [
     {
-      "queryid": "uuid",
-      "query": "SELECT * FROM Table1",
-      "runquantity": 10,
-      "executiontime": 5
+      "queryid": "10ba3c04-0f91-4ef3-a717-c1e0d33b31bc",
+      "query": "SELECT carrier, COUNT(*) FROM flights GROUP BY carrier",
+      "runquantity": 795,
+      "executiontime": 20
     }
   ]
 }
 ```
 
-**Ответ:**
+Response: `{ "taskid": "c8ed3309-1acb-439a-b32b-f802ba41db3e" }`
+
+### Check task status
+
+```
+GET /status?task_id={taskid}
+```
+
+Response: `{ "status": "RUNNING" | "DONE" | "FAILED" }`
+
+### Get results
+
+```
+GET /getresult?task_id={taskid}
+```
 
 ```json
 {
-  "taskid": "c8ed3309-1acb-439a-b32b-f802ba41db3e"
+  "ddl": [{ "statement": "CREATE TABLE optimized_flights (...)" }],
+  "migrations": [{ "statement": "INSERT INTO optimized_flights SELECT ..." }],
+  "queries": [{ "queryid": "...", "query": "SELECT ... (optimized)" }]
 }
 ```
 
 ---
 
-#### 2. Получить статус задачи
+## Tech Stack
 
-**GET** `<endpoint>/status?taskid={taskid}`
-Проверяет статус созданной задачи.
+| Category | Technology |
+|----------|-----------|
+| Language | Python 3.13 |
+| Framework | FastAPI + Uvicorn + uvloop |
+| AI/ML | LangGraph, LangChain, Google Gemini |
+| SQL | sqlglot (with Rust backend) |
+| DI | Dishka |
+| Infrastructure | Docker, Docker Compose |
+| Test Stack | Trino + Hive Metastore + Apache Iceberg + MinIO S3 |
 
-**Параметры запроса:**
+---
 
-* `taskid` (строка, обязательный): ID целевой задачи
+## Development
 
-**Ответ:**
-
-```json
-{
-  "status": "DONE | RUNNING | FAILED"
-}
+```bash
+cd llm-service
+uv sync
+uv run uvicorn src.main:app --reload --port 8000
 ```
 
----
+### Test Infrastructure (Trino + Iceberg)
 
-#### 3. Получить результат задачи
-
-**GET** `<endpoint>/getresult?taskid={taskid}`
-Возвращает результаты выполненной задачи.
-
-**Параметры запроса:**
-
-* `taskid` (строка, обязательный): ID целевой задачи
-
-**Ответ:**
-
-```json
-{
-  "ddl": [
-    {
-      "statement": "CREATE TABLE optimized_table (...)"
-    }
-  ],
-  "migrations": [
-    {
-      "statement": "INSERT INTO optimized_table SELECT * FROM old_table"
-    }
-  ],
-  "queries": [
-    {
-      "queryid": "uuid",
-      "query": "WITH MonthlyFlightCounts AS (...) SELECT ..."
-    }
-  ]
-}
+```bash
+cd test-system/deploy
+docker compose up -d
 ```
 
----
-
-## 🛠️ Технологический стек
-
-<table>
-<tr>
-<td align="center" width="33%">
-
-### 🐍 Backend
-![Python](https://img.shields.io/badge/Python-3.13-3776AB?style=for-the-badge&logo=python&logoColor=white)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.109+-009688?style=for-the-badge&logo=fastapi&logoColor=white)
-![Dishka](https://img.shields.io/badge/Dishka-DI-purple?style=for-the-badge)
-
-</td>
-<td align="center" width="33%">
-
-### 🤖 AI/ML
-![LangGraph](https://img.shields.io/badge/LangGraph-Framework-FF6F00?style=for-the-badge)
-![LangChain](https://img.shields.io/badge/LangChain-Framework-1C3C3C?style=for-the-badge)
-![GPT-OSS](https://img.shields.io/badge/GPT--OSS-20B-412991?style=for-the-badge&logo=openai&logoColor=white)
-
-</td>
-<td align="center" width="33%">
-
-### 🐳 DevOps
-![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=for-the-badge&logo=docker&logoColor=white)
-![Docker Compose](https://img.shields.io/badge/Docker_Compose-Configured-2496ED?style=for-the-badge&logo=docker&logoColor=white)
-
-</td>
-</tr>
-</table>
+Deploys MinIO (S3), PostgreSQL, Hive Metastore, and Trino with Iceberg catalog.
 
 ---
 
-### 📦 Полный список технологий
+## Contacts
 
-| Категория | Технология | Описание |
-|-----------|-----------|----------|
-| **🐍 Язык** | Python 3.13 | Современная версия Python с улучшенной производительностью |
-| **🌐 Web Framework** | FastAPI | Высокопроизводительный асинхронный фреймворк |
-| **💉 DI Container** | Dishka | Мощный контейнер для внедрения зависимостей |
-| **🤖 LLM Framework** | LangGraph, LangChain | Фреймворки для работы с языковыми моделями |
-| **🧠 AI Model** | [GPT-OSS 20B](https://huggingface.co/openai/gpt-oss-20b) | Языковая модель для анализа и оптимизации |
-| **📖 Documentation** | OpenAPI / Swagger | Автоматическая интерактивная документация API |
-| **🐳 Containerization** | Docker, Docker Compose | Контейнеризация и оркестрация сервисов |
-
-
-## 📞 Контакты и поддержка
-
-<div align="center">
-
-[![GitHub Issues](https://img.shields.io/badge/GitHub-Issues-red?style=for-the-badge&logo=github)](https://github.com/ashromanov/llm-db-optimization/issues)
-[![GitHub Stars](https://img.shields.io/github/stars/ashromanov/llm-db-optimization?style=for-the-badge)](https://github.com/ashromanov/llm-db-optimization/stargazers)
-[![GitHub Forks](https://img.shields.io/github/forks/ashromanov/llm-db-optimization?style=for-the-badge)](https://github.com/ashromanov/llm-db-optimization/network/members)  
-
-[![Telegram](https://img.shields.io/badge/Telegram-Андрей-blue?style=for-the-badge&logo=telegram)](https://t.me/ShadowP1e)
-[![Telegram](https://img.shields.io/badge/Telegram-Иван-blue?style=for-the-badge&logo=telegram)](https://t.me/iwance)
-[![Telegram](https://img.shields.io/badge/Telegram-Асхат-blue?style=for-the-badge&logo=telegram)](https://t.me/Ashromanov)
-
-</div>
-
+[![Telegram](https://img.shields.io/badge/Telegram-Andrey-blue?style=flat-square&logo=telegram)](https://t.me/ShadowP1e)
+[![Telegram](https://img.shields.io/badge/Telegram-Ivan-blue?style=flat-square&logo=telegram)](https://t.me/iwance)
+[![Telegram](https://img.shields.io/badge/Telegram-Askhat-blue?style=flat-square&logo=telegram)](https://t.me/Ashromanov)

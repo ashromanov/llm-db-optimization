@@ -140,11 +140,4 @@ class TaskIdResponse(BaseModel):
 
 
 class TaskStatusResponse(BaseModel):
-    """
-    Model for providing status of some task.
-
-    Attributes:
-        status (str): Status of the task.
-    """
-
     status: str = Field(...)
